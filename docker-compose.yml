@@ -1,0 +1,35 @@
+version: "3.8"
+services:
+  minio:
+    image: minio/minio
+    container_name: minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: "minioadmin"
+      MINIO_ROOT_PASSWORD: "minioadmin"
+    command: server /data --console-address ":9001"
+    volumes:
+      - ./minio-data:/data
+
+  spark:
+    build:
+      context: ./spark
+    container_name: spark
+    ports:
+      - "4040:4040"
+      - "10000:10000"
+    environment:
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+
+  dbt:
+    build:
+      context: ./spark/dbt_project
+    container_name: dbt
+    volumes:
+      - ./spark/dbt_project:/usr/src/dbt_project
+    working_dir: /usr/src/dbt_project
+    entrypoint: ["tail", "-f", "/dev/null"]
