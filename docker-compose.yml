@@ -26,8 +26,7 @@ services:
       MINIO_SECRET_KEY: minioadmin
 
   dbt:
-    build:
-      context: ./spark/dbt_project
+    image: apache/spark:3.3.2
     container_name: dbt
     volumes:
       - ./spark/dbt_project:/usr/src/dbt_project
