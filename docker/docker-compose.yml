@@ -1,0 +1,70 @@
+version: '3.8'
+services:
+  mariadb:
+    image: mariadb:10.5
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: metastore
+    volumes:
+      - ./mariadb/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - 3307:3306
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  
+  hive-metastore:
+    image: bde2020/hive-metastore:2.3.0-postgresql-metastore
+    environment:
+      HIVE_METASTORE_DB_HOST: mariadb
+      HIVE_METASTORE_DB_NAME: metastore
+      HIVE_METASTORE_DB_USER: root
+      HIVE_METASTORE_DB_PASS: root
+      HIVE_WAREHOUSE_URI: s3a://warehouse/
+    depends_on:
+      - mariadb
+    command: /opt/hive/bin/start-metastore
+
+  spark-thrift:
+    build: 
+      context: .
+      dockerfile: spark/Dockerfile
+    environment:
+      SPARK_MODE: thrift
+      SPARK_MASTER: local[*]
+      SPARK_DRIVER_MEMORY: 2g
+      SPARK_DRIVER_CORES: 2
+      SPARK_EXECUTOR_MEMORY: 2g
+      SPARK_EXECUTOR_CORES: 2
+      HIVE_METASTORE_URI: "thrift://hive-metastore:9083"
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      AWS_ENDPOINT: http://minio:9000
+    depends_on:
+      - hive-metastore
+      - minio
+    ports:
+      - "10000:10000"
+    volumes:
+      - ./scripts/spark-defaults.conf:/spark/conf/spark-defaults.conf
+
+  minio:
+    image: minio/minio:latest
+    environment:
+      MINIO_ACCESS_KEY: minio
+      MINIO_SECRET_KEY: minio-pass
+    command: server /data
+    ports:
+      - 9000:9000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    volumes:
+      - minio_data:/data
+
+volumes:
+  minio_data:
